@@ -2,8 +2,6 @@
 
 Proyecto personal basado en [Shopizer](https://github.com/shopizer-ecommerce/shopizer) (Apache 2.0, Spring Boot 2.5, Java 11+). Agrega a Shopizer el concepto de **vendedor** (puesto del tianguis) con su comisión, estado y token de integración, y un **panel básico** para administrarlos.
 
-> Este proyecto es de práctica: la idea es seguir agregando features y también **encontrar y corregir problemas** (seguridad, configuración, referencias). Cuando quieras una pista, pregúntale a Claude.
-
 ## Módulos
 
 | Módulo | Contenido |
