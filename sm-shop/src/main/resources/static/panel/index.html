@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tianguis · Panel de vendedores</title>
+<link rel="stylesheet" href="/panel/css/panel.css">
+<style>
+  :root { --ink:#2b2118; --paper:#fbf6ec; --chile:#c8371c; --maiz:#e9a820; --nopal:#2f6b4f; --line:#e4d9c3; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--paper); color:var(--ink); }
+  header { background:var(--chile); color:#fff; padding:16px 24px; display:flex; justify-content:space-between; align-items:center; }
+  header h1 { margin:0; font-size:20px; letter-spacing:.5px; }
+  main { max-width:1000px; margin:24px auto; padding:0 16px; display:grid; gap:20px; }
+  section { background:#fff; border:1px solid var(--line); border-radius:10px; padding:18px; }
+  h2 { margin:0 0 12px; font-size:16px; color:var(--nopal); }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  th, td { text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); }
+  th { font-weight:600; color:#6b5a45; }
+  input, select, button { font:inherit; padding:8px 10px; border:1px solid var(--line); border-radius:6px; }
+  button { background:var(--nopal); color:#fff; border:0; cursor:pointer; }
+  button.secondary { background:var(--maiz); color:var(--ink); }
+  button.danger { background:var(--chile); }
+  .row { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; }
+  .row > * { flex:1 1 160px; }
+  .badge { padding:2px 8px; border-radius:999px; font-size:12px; background:var(--line); }
+  .badge.ACTIVE { background:#d6eadf; color:var(--nopal); }
+  .badge.SUSPENDED { background:#f6d4cc; color:var(--chile); }
+  #msg { font-size:13px; min-height:18px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Tianguis · Panel de vendedores</h1>
+  <div id="session"></div>
+</header>
+
+<main>
+  <section id="login">
+    <h2>Iniciar sesión (administrador)</h2>
+    <div class="row">
+      <input id="user" placeholder="Correo" value="admin@shopizer.com">
+      <input id="pass" type="password" placeholder="Contraseña">
+      <button onclick="login()">Entrar</button>
+    </div>
+    <div id="msg"></div>
+  </section>
+
+  <section>
+    <h2>Vendedores</h2>
+    <div class="row">
+      <input id="q" placeholder="Buscar por nombre…">
+      <button class="secondary" onclick="searchVendors()">Buscar</button>
+      <button onclick="loadVendors()">Ver todos</button>
+    </div>
+    <table>
+      <thead><tr><th>Código</th><th>Nombre</th><th>Estado</th><th>Comisión</th><th></th></tr></thead>
+      <tbody id="vendors"></tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Registrar vendedor</h2>
+    <div class="row">
+      <input id="f_code" placeholder="Código (ej. doña-lupe)">
+      <input id="f_name" placeholder="Nombre del puesto">
+      <input id="f_email" placeholder="Correo de contacto">
+    </div>
+    <div class="row">
+      <input id="f_rfc" placeholder="RFC">
+      <input id="f_comm" type="number" step="0.5" placeholder="Comisión %" value="10">
+      <select id="f_status"><option>PENDING</option><option>ACTIVE</option><option>SUSPENDED</option></select>
+    </div>
+    <div class="row"><input id="f_desc" placeholder="Descripción"></div>
+    <button onclick="createVendor()">Registrar</button>
+  </section>
+</main>
+
+<script src="/panel/js/vendor-chart.js"></script>
+<script>
+const API = '/api/v1';
+let token = localStorage.getItem('tianguis_token');
+
+function say(t, bad) {
+  const m = document.getElementById('msg');
+  m.textContent = t;
+  m.style.color = bad ? '#c8371c' : '#2f6b4f';
+}
+
+function authHeaders() {
+  const h = { 'Content-Type': 'application/json' };
+  if (token) h['Authorization'] = 'Bearer ' + token;
+  return h;
+}
+
+async function login() {
+  const res = await fetch(API + '/private/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: user.value, password: pass.value })
+  });
+  if (!res.ok) { say('No se pudo iniciar sesión', true); return; }
+  const data = await res.json();
+  token = data.token;
+  localStorage.setItem('tianguis_token', token);
+  document.getElementById('session').textContent = user.value;
+  say('Sesión iniciada');
+}
+
+function render(list) {
+  const body = document.getElementById('vendors');
+  body.innerHTML = list.map(v => `
+    <tr>
+      <td>${v.code}</td>
+      <td>${v.name}<br><small>${v.description || ''}</small></td>
+      <td><span class="badge ${v.status}">${v.status}</span></td>
+      <td>${v.commissionPercent}%</td>
+      <td><button class="danger" onclick="removeVendor('${v.code}')">Eliminar</button></td>
+    </tr>`).join('');
+}
+
+async function loadVendors() {
+  const res = await fetch(API + '/vendor');
+  render(await res.json());
+}
+
+async function searchVendors() {
+  const res = await fetch(API + '/vendor/search?q=' + document.getElementById('q').value);
+  if (!res.ok) { say('Error en la búsqueda', true); return; }
+  render(await res.json());
+}
+
+async function createVendor() {
+  const body = {
+    code: f_code.value, name: f_name.value, contactEmail: f_email.value, taxId: f_rfc.value,
+    commissionPercent: parseFloat(f_comm.value), status: f_status.value, description: f_desc.value
+  };
+  const res = await fetch(API + '/private/vendor', { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) });
+  if (!res.ok) { say('No se pudo registrar (¿iniciaste sesión?)', true); return; }
+  say('Vendedor registrado');
+  loadVendors();
+}
+
+async function removeVendor(code) {
+  const res = await fetch(API + '/private/vendor/' + code, { method: 'DELETE', headers: authHeaders() });
+  if (!res.ok) { say('No se pudo eliminar', true); return; }
+  loadVendors();
+}
+
+loadVendors();
+</script>
+</body>
+</html>
